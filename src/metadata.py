@@ -26,6 +26,19 @@ class ParsedFolderMeta:
     phase: str
 
 
+def _event_matches(expected_event: str, parsed_event: str) -> bool:
+    expected = expected_event.strip().lower()
+    parsed = parsed_event.strip().lower()
+    if not expected or not parsed:
+        return False
+    if expected == parsed:
+        return True
+    parsed_tokens = [t for t in re.split(r"[_\-\s]+", parsed) if t]
+    if expected in parsed_tokens:
+        return True
+    return expected in parsed
+
+
 def parse_event(root: Path) -> Optional[str]:
     match = EVENT_RE.match(root.name)
     if not match:
@@ -34,14 +47,18 @@ def parse_event(root: Path) -> Optional[str]:
 
 
 def parse_serial_folder(folder: Path, event: str, phase: str) -> Optional[ParsedFolderMeta]:
-    # Accept both with and without VQF12 prefix.
+    # Accept flexible event token in folder names.
     # Examples:
     # - VQF12_<EVENT>_<SERIAL>_init
     # - <EVENT>_<SERIAL>_init
+    # - ViOnyx_<EVENT>_<SERIAL>_init
     phase_suffix = "init" if phase == "init" else "after"
-    pattern = rf"^(?:VQF12_)?{re.escape(event)}_(?P<serial>\d+)_{phase_suffix}$"
+    pattern = rf"^(?:VQF12_)?(?P<event>.+)_(?P<serial>\d+)_{phase_suffix}$"
     match = re.match(pattern, folder.name)
     if not match:
+        return None
+    parsed_event = match.group("event")
+    if not _event_matches(event, parsed_event):
         return None
     return ParsedFolderMeta(event=event, serial=match.group("serial"), phase=phase)
 
@@ -54,9 +71,12 @@ def parse_json_filename(filename: str, event: str) -> Optional[ParsedFileMeta]:
     # - VQF12_<EVENT>_<SERIAL>_<POSITION>.json
     # - <EVENT>_<SERIAL>_<POSITION>_<NN>.json
     # - <EVENT>_<SERIAL>_<POSITION>.json
-    relaxed = rf"^(?:VQF12_)?{re.escape(event)}_(?P<serial>\d+)_(?P<position>.+)_tiff\.json$"
+    relaxed = r"^(?:VQF12_)?(?P<event>.+)_(?P<serial>\d+)_(?P<position>.+)_tiff\.json$"
     match = re.match(relaxed, filename)
     if match:
+        parsed_event = match.group("event")
+        if not _event_matches(event, parsed_event):
+            return None
         return ParsedFileMeta(
             event=event,
             serial=match.group("serial"),
@@ -64,9 +84,12 @@ def parse_json_filename(filename: str, event: str) -> Optional[ParsedFileMeta]:
             repeat_index=1,
         )
 
-    strict = rf"^(?:VQF12_)?{re.escape(event)}_(?P<serial>\d+)_(?P<position>.+?)(?:_(?P<nn>\d+))?\.json$"
+    strict = r"^(?:VQF12_)?(?P<event>.+)_(?P<serial>\d+)_(?P<position>.+?)(?:_(?P<nn>\d+))?\.json$"
     match = re.match(strict, filename)
     if match:
+        parsed_event = match.group("event")
+        if not _event_matches(event, parsed_event):
+            return None
         nn = match.group("nn")
         return ParsedFileMeta(
             event=event,
