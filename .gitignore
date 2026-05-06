@@ -1,0 +1,15 @@
+﻿.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# runtime outputs
+*.log
+output_*/
